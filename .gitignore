@@ -1,0 +1,33 @@
+# This file is used to ignore files which are generated
+# ----------------------------------------------------------------------------
+
+# root
+/tmp
+
+#common
+MD5.EXE
+**/.vscode/
+*.zip
+*.rar
+*/db
+*/gdb
+*/dni
+*/tmp_clearbox
+*.log
+*.rpt
+*.backup
+*.sdc
+*.qws
+*.rec
+*.qdf
+*.asv
+*.bak
+*.ipynb_checkpoints
+**/__pycache__
+
+import/
+*.hex
+a.out
+dump*.vcd
+log.txt
+lint.txt

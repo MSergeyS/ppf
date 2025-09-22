@@ -9,7 +9,8 @@ def fft_signal(s: np.ndarray, t: np.ndarray):
 
     # длина сигнала
     nsamp = len(t)
-
+    # вычисление амплитудного спектра
+    amplitude_spectrum = np.abs(fft_s)
     # частота дискретизации
     fs = 1.0 / (t[1] - t[0])
 
@@ -23,6 +24,6 @@ def fft_signal(s: np.ndarray, t: np.ndarray):
     print(f"Разрешение по частоте = {round(df)}  Гц")
 
     # вектор частот
-    freq_vec = np.linspace(-fs/2, fs/2, nsamp)
+    freq_vec = np.fft.fftshift(np.fft.fftfreq(nsamp, d=1/fs))
 
     return fft_s, nsamp, fs, df, freq_vec

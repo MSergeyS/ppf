@@ -2,9 +2,8 @@ from PyQt6.QtWidgets import QFileDialog
 import os
 import json  # Для работы с JSON файлами
 
-from load_and_prepare_data import load_and_prepare_data  # загрузка и подготовка данных
-from plot_to_qt import plot_signal_to_qt  # построение графика в PyQt
-
+from load_and_prepare_data import load_data  # загрузка и подготовка данных
+from PlotData import PlotData  # Импортируем ваш класс
 
 def open_csv_file(main_window):
     """
@@ -52,22 +51,42 @@ def open_csv_file(main_window):
                     main_window.inx_stop = data_dict["inx_stop"]
                     main_window.downsampling_factor = data_dict["downsampling_factor"]
                 main_window.show_message(
-                    f"Параметры: {main_window.format_ver}, {main_window.inx_start}, {main_window.inx_stop}, {main_window.downsampling_factor}"
+                    f"Параметры: {main_window.format_ver}, {main_window.inx_start}, {main_window.inx_stop}, {main_window.downsampling_factor}\n"
                 )
             except FileNotFoundError:
                 main_window.show_message(
                     "JSON-файл не найден, используются параметры по умолчанию из окна."
                 )
-            t, s, meta_info, meta_df, dt, oversampling_factor, N = (
-                load_and_prepare_data(
+            # t, s, meta_info, meta_df, dt, oversampling_factor, N = (
+            #     load_and_prepare_data(
+            #         file_name,
+            #         main_window.format_ver,
+            #         main_window.inx_start,
+            #         main_window.inx_stop,
+            #         main_window.downsampling_factor,
+            #     )
+            # )
+            t, s, meta_info = (
+                load_data(
                     file_name,
-                    main_window.format_ver,
-                    main_window.inx_start,
-                    main_window.inx_stop,
-                    main_window.downsampling_factor,
+                    main_window.format_ver
                 )
             )
-            # Передаём флаг add_mode=True, чтобы не очищать область (реализуйте поддержку этого флага в plot_signal_to_qt)
-            plot_signal_to_qt(main_window.plot_widget, t, s, add_mode=True)
+
+            # # Передаём флаг add_mode=True, чтобы не очищать область (реализуйте поддержку этого флага в plot_signal_to_qt)
+            # plot_signal_to_qt(main_window.plot_widget, t, s, add_mode=True)
+
+            num_lines = len(main_window.plot_data_signal.get_all_lines())  # Получаем количество линий
+            if not hasattr(main_window.plot_data_signal, "_osc_viewer_file_names"):
+                main_window.plot_data_signal._osc_viewer_file_names = {}
+            main_window.plot_data_signal._osc_viewer_file_names[num_lines] = file_name
+            main_window.plot_data_signal.plot_line(t, s, x_zoom=1000, add_mode=True, label=file_name.split("/")[-1])  # Добавляем линию с именем файла в легенду
+            main_window.plot_data_signal.set_axes_params(
+                title="Осциллограмма сигнала",
+                ylabel='Амплитуда, В',
+                xlabel='Время, мс'
+            )
+            main_window.show_message("График построен")
+
         except Exception as e:
             main_window.show_message(f"Ошибка: {e}")

@@ -4,8 +4,16 @@ import pandas as pd
 class MetaInfo:
     def __init__(self, info):
         self.info = info
+        
+def load_data(file_name, format_ver):
+    # Вместо print используем возврат строки для отображения в TextBox
+    status_message = f"\nЗагрузка файла: {file_name}  Формат: {format_ver}"
+    # Для передачи цвета можно вернуть кортеж (строка, цвет)
+    # Например: return status_message, "green"
+    # Или если TextBox поддерживает HTML/Markdown:
+    # status_message = f"<span style='color:green'>{status_message}</span>"
+    print(status_message)
 
-def load_and_prepare_data(file_name, format_ver, inx_start, inx_stop, downsampling_factor):
     meta = {}
     t = []
     s = []
@@ -34,56 +42,56 @@ def load_and_prepare_data(file_name, format_ver, inx_start, inx_stop, downsampli
                             k_t = float(fields[i])
                     cnt_str += 1
                 elif cnt_str > 1:
-                    # Проверяем, что поля не пустые
                     if (len(fields) < 2):
                         break
                     if fields[0].strip() != '' and fields[1].strip() != '':
                         t.append(float(fields[0]) * k_t)
                         s.append(float(fields[1]))
-                    # # Проверяем, что поля не пустые
-                    # if fields[0].strip() != '':
-                    #     t.append(cnt * k_t)
-                    #     s.append(float(fields[0]))
-                    #     cnt += 1
 
-
-    print(f"Считано {len(t)} отсчётов")
-    print(f"Частота дискретизации = {round((1/k_t)/1e6)}  МГц")
-
-    if downsampling_factor != 1:
-        s = s[inx_start:inx_stop:downsampling_factor]
-        t = np.array(t)[inx_start:inx_stop:downsampling_factor] - t[inx_start]
-        t = t.tolist()
+    if len(t) > 1:
+        meta['fs'] = 1/(t[1]-t[0])
     else:
-        t = t[inx_start:inx_stop]
-        s = s[inx_start:inx_stop]
-        t = np.array(t) - t[0]
-        t = t.tolist()
-
-    s = np.array(s) - np.mean(s)
-    s = s.tolist()
+        meta['fs'] = 0.0  # or handle as appropriate
 
     meta_info = MetaInfo(meta)
     meta_df = pd.DataFrame({'Key': list(meta_info.info.keys()), 'Value': list(meta_info.info.values())})
+    print()
     print(meta_df)
 
-    N = len(s)
-    oversampling_factor = 2**16 / N
-    N = len(t)
-    N_new = int(np.floor(oversampling_factor * N))
-
-    s = s + [0.0] * (N_new - N)
-    dt = t[1] - t[0]
-    # Пример получения значения из meta_df по ключу, например "Start"
     start_t = meta_df.loc[meta_df['Key'] == 'Start', 'Value'].values
     if len(start_t) > 0:
         start_t = float(start_t[0])
     else:
         start_t = 0.0
-    t = [val + start_t for val in t + [t[-1] + dt * i for i in range(1, N_new - N + 1)]]
-    
-    print(f"Для анализа берём {len(t)} отсчётов")
-    dt = t[1] - t[0]
-    print(f"\nЧастота дискретизации (новая) = {round((1/dt)/1e6)}  МГц\n")
+    t = np.array(t) + start_t
+    t = t.tolist()
 
-    return t, s, meta_info, meta_df, dt, oversampling_factor, N
+    print(f'Сигнал загружен. Количество точек: {len(s)}\n')
+    
+    return t, s, meta_df
+
+def prepare_data(t, s, downsampling_factor=10):
+    print(f"\nПодготовка данных с даунсемплингом: {downsampling_factor}")
+    print(f"Исходная частота дискретизации = {1/(t[1] - t[0])/1e6:.2f} МГц")
+
+    if downsampling_factor > 1:
+        t = t[::downsampling_factor]
+        s = s[::downsampling_factor]
+
+    # Убираем среднее значение из сигнала (постоянную составляющую)
+    s = np.array(s) - np.mean(s)
+    s = s.tolist()
+
+    N = len(s)
+    oversampling_factor = 2**16 / N
+    N_new = int(np.floor(oversampling_factor * N))
+
+    # увеличиваем количество точек для разрешения по частоте до 2^16 точек (если нужно)
+    s = s + [0.0] * (N_new - N)
+    t = t.tolist() + [0.0] * (N_new - N)
+
+    print(f"Новая частота дискретизации = {1/(t[1] - t[0])/1e6:.2f} МГц")
+    print(f"Подготовка проведена. Длина сигнала после подготовки = {len(s)}\n")
+
+    return t, s, oversampling_factor
+

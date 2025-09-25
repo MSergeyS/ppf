@@ -1,82 +1,206 @@
+# -*- coding: utf-8 -*-
+'''
+main.py
+
+Автор:        Мосолов С.С. (mosolov.s.s@yandex.ru)
+Дата:         2025-09-25
+Версия:       1.0.0
+
+Лицензия:     MIT License
+Контакты:     https://github.com/MSergeyS/ppf.git
+
+Краткое описание:
+-----------------
+Главный модуль приложения OscViewer для визуализации сигналов и их спектров. 
+Реализует графический интерфейс на PyQt6, управление вкладками, отображение графиков, спектров, сообщений, 
+контекстные меню и обработку открытия CSV-файлов с сигналами.
+
+Список классов и функций:
+-------------------------
+- QtOutput
+    Класс для перенаправления вывода print в QTextEdit.
+- MainWindow
+    Главное окно приложения, реализует интерфейс, вкладки, меню, обработку событий и отображение данных.
+- if __name__ == "__main__":
+    Точка входа в приложение, запуск основного окна.
+'''
+
+# Импортируем необходимые библиотеки
+import numpy as np
+import sys
+
+# Импортируем виджеты и классы из PyQt6 для создания GUI
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QTextEdit, QVBoxLayout, QWidget, QTabWidget, QMenu
+    QApplication,
+    QMainWindow,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+    QTabWidget,
 )
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import QSize, Qt
-import sys
 
-from open_csv_file import open_csv_file
-from fft_signal import fft_signal
-from load_and_prepare_data import prepare_data
-import numpy as np
+# Импортируем FigureCanvas для отображения графиков matplotlib в PyQt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
-from PlotData import PlotData  # Импортируем ваш класс
-from create_spectrume import add_spectrume  # Импортируем функцию создания спектра
+# Импортируем пользовательские модули и функции
+from PlotData import PlotData  # Класс для работы с графиками (сигнал/спектр)
+from load_and_prepare_data import open_csv_file  # Функция для открытия CSV-файлов
+from osc_context_menu import (
+    show_plot_context_menu,
+)  # Контекстное меню для графика сигнала
+from spectr_context_menu import show_spectr_context_menu  # Контекстное меню для спектра
 
+
+# Класс для перенаправления вывода print в QTextEdit
 class QtOutput:
+    '''
+    Класс QtOutput предназначен для перенаправления текстового вывода в виджет QTextEdit в приложениях на PyQt/PySide.
+    Атрибуты:
+        textedit (QTextEdit): Ссылка на виджет QTextEdit, в который будет выводиться текст.
+    Методы:
+        __init__(self, textedit):
+            Инициализирует объект QtOutput, сохраняя ссылку на переданный QTextEdit.
+        write(self, msg):
+            Добавляет сообщение msg в конец текста QTextEdit, перемещая курсор в конец перед вставкой.
+        flush(self):
+            Метод-заглушка для совместимости с интерфейсом файлового объекта; не выполняет никаких действий.
+    '''
+
     def __init__(self, textedit):
-        self.textedit = textedit
+        self.textedit = textedit  # Сохраняем ссылку на QTextEdit
+
     def write(self, msg):
+        # Перемещаем курсор в конец текста
         cursor = self.textedit.textCursor()
         cursor.movePosition(cursor.MoveOperation.End)
         self.textedit.setTextCursor(cursor)
-        self.textedit.insertPlainText(str(msg))
+        # Вставляем новое сообщение: если это HTML, используем insertHtml, иначе insertPlainText
+        msg_str = str(msg)
+        if msg_str.strip().startswith("<span"):
+            self.textedit.insertHtml(msg_str)
+        else:
+            self.textedit.insertPlainText(msg_str)
+
     def flush(self):
+        # Метод flush нужен для совместимости, но здесь ничего делать не нужно
         pass
 
+
 class MainWindow(QMainWindow):
+    '''
+    Класс MainWindow реализует главное окно приложения OscViewer для визуализации сигналов и их спектров.
+    Основные возможности:
+    - Отображение графика сигнала и его спектра на отдельных вкладках.
+    - Вывод сообщений и логов в отдельной вкладке "Сообщения".
+    - Контекстные меню для графика и спектра с возможностью:
+        - Сохранять изображение графика (заглушка).
+        - Очищать график.
+        - Строить спектр по выбранной линии.
+        - Переключать масштаб оси Y спектра между Вольтами и децибелами.
+    - Перенаправление вывода stdout в текстовое поле сообщений.
+    - Работа с несколькими линиями графика и спектра, поддержка их параметров (цвет, стиль, подпись).
+    - Гибкая настройка интерфейса через QTabWidget и QVBoxLayout.
+    - Меню приложения с возможностью открытия CSV-файлов.
+    Атрибуты:
+        status_text (QTextEdit): Текстовое поле для вывода сообщений.
+        plot_widget (QWidget): Виджет для отображения графика сигнала.
+        plot_data_signal (PlotData): Объект для работы с данными графика сигнала.
+        spectrum_widget (QWidget): Виджет для отображения спектра сигнала.
+        spectrum_layout (QVBoxLayout): Layout для размещения элементов спектра.
+        spectrum_data (PlotData): Объект для работы с данными спектра.
+        tabs (QTabWidget): Вкладки приложения.
+        _spectrum_db_mode (bool): Флаг режима отображения спектра (В или дБ).
+    Методы:
+        show_message(text): Выводит сообщение в текстовое поле.
+        redirect_stdout_to_textedit(): Контекстный менеджер для перенаправления stdout в QTextEdit.
+        closeEvent(event): Обрабатывает событие закрытия окна.
+        show_plot_context_menu(pos): Показывает контекстное меню для графика сигнала.
+        show_spectr_context_menu(pos): Показывает контекстное меню для вкладки "Спектр" с возможностью переключения масштаба Y.
+    '''
+
     def __init__(self):
         super().__init__()
 
         self.setWindowTitle("OscViewer")
         self.setMinimumSize(QSize(800, 500))
 
+        # Текстовое поле для вывода сообщений
         self.status_text = QTextEdit()
         self.status_text.setReadOnly(True)
 
+        # Виджет для графика сигнала
+        # Создаем QWidget, который будет содержать график сигнала
         self.plot_widget = QWidget()
+        # Устанавливаем политику контекстного меню для plot_widget (по запросу пользователя)
         self.plot_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.plot_widget.customContextMenuRequested.connect(self.show_plot_context_menu)
+        # Подключаем обработчик для показа контекстного меню с перенаправлением вывода в QTextEdit
+        self.plot_widget.customContextMenuRequested.connect(
+            self.show_plot_context_menu_with_redirect
+        )
 
-        # Создаем экземпляр PlotData для plot_widget
+        # Экземпляр PlotData для работы с графиком сигнала
         self.plot_data_signal = PlotData(self.plot_widget)
 
-        self.spectrum_widget = QWidget()  # Переместили сюда, чтобы использовать ниже
-        # Подключаем обработчик события контекстного меню
-        self.spectrum_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.spectrum_widget.customContextMenuRequested.connect(self.show_spectr_context_menu)
-        self.spectrum_layout = QVBoxLayout(self.spectrum_widget)  # Устанавливаем layout для spectrum_widget
+        # Виджет для спектра
+        self.spectrum_widget = QWidget()
+        self.spectrum_widget.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
+        self.spectrum_widget.customContextMenuRequested.connect(
+            lambda pos: show_spectr_context_menu(self, pos)
+        )
+        self.spectrum_layout = QVBoxLayout(self.spectrum_widget)  # Layout для спектра
 
+        # Основной layout окна
         layout = QVBoxLayout()
         layout.addWidget(self.plot_widget, stretch=3)
-        # Создаем экземпляр PlotData для spectrum_widget
+        # Экземпляр PlotData для работы со спектром
         self.spectrum_data = PlotData(self.spectrum_widget)
         layout.addWidget(self.status_text, 1)
 
+        # Вкладки приложения
         self.tabs = QTabWidget()
         self.tabs.addTab(self.plot_widget, "График")
         self.tabs.addTab(self.status_text, "Сообщения")
         self.tabs.addTab(self.spectrum_widget, "Спектр")
         self.setCentralWidget(self.tabs)
+                
+        # Меню приложения
+        # Создаем меню приложения
+        menubar = self.menuBar()  # Получаем объект меню
+        file_menu = menubar.addMenu("Файл")  # Добавляем пункт "Файл" в меню
 
-        menubar = self.menuBar()
-        file_menu = menubar.addMenu("Файл")
+        # Создаем действие "Открыть CSV..."
         open_action = QAction("Открыть CSV...", self)
-        open_action.triggered.connect(lambda: open_csv_file(self))
+        # Подключаем обработчик для открытия CSV-файла с выводом сообщений в QTextEdit
+        open_action.triggered.connect(self.open_csv_with_redirect)
+        # Добавляем действие в меню "Файл"
         file_menu.addAction(open_action)
 
-        # self._old_stdout = sys.stdout
-        # sys.stdout = QtOutput(self.status_text)
-        self._spectrum_db_mode = False  # Initialize spectrum dB mode flag
+        # Флаг режима отображения спектра (В или дБ)
+        self._spectrum_db_mode = False
+    
 
     def show_message(self, text):
+        '''
+        Выводит сообщение в текстовое поле "Сообщения" на вкладке приложения.
+        Аргументы:
+            text (str): Текст сообщения для отображения.
+        '''
         self.status_text.append(text)
 
-    # Context manager for temporary stdout redirection
+    # Контекстный менеджер для временного перенаправления stdout в QTextEdit
     from contextlib import contextmanager
+
     @contextmanager
     def redirect_stdout_to_textedit(self):
+        '''
+        Контекстный менеджер для перенаправления стандартного вывода (stdout)
+        в текстовое поле сообщений QTextEdit. Используется для вывода print-сообщений
+        непосредственно в GUI.
+        '''
         old_stdout = sys.stdout
         sys.stdout = QtOutput(self.status_text)
         try:
@@ -84,128 +208,62 @@ class MainWindow(QMainWindow):
         finally:
             sys.stdout = old_stdout
 
+    def open_csv_with_redirect(self):
+        '''
+        Этот метод вызывает диалоговое окно для выбора CSV-файла. 
+        Все сообщения, выводимые через функцию print внутри open_csv_file, 
+        будут отображаться во вкладке "Сообщения" приложения, а не в стандартном выводе консоли.
+        Использует контекстный менеджер для перенаправления stdout в QTextEdit.
+        Примечание:
+            Функция open_csv_file должна реализовывать логику открытия и обработки выбранного CSV-файла.
+        '''
+        '''
+        Открывает CSV-файл с перенаправлением вывода в QTextEdit.
+
+        Этот метод вызывает диалог открытия CSV-файла, а все сообщения,
+        которые выводятся через print внутри open_csv_file, будут отображаться
+        во вкладке "Сообщения" приложения, а не в стандартном выводе консоли.
+        '''
+        # Используем контекстный менеджер для перенаправления stdout в QTextEdit
+        with self.redirect_stdout_to_textedit():
+            # Открываем CSV-файл (функция open_csv_file реализует логику открытия и обработки)
+            open_csv_file(self)
+
+    def show_plot_context_menu_with_redirect(self, pos):
+        '''
+        Показывает контекстное меню для графика сигнала с перенаправлением вывода в QTextEdit.
+
+        Описание:
+            Этот метод отображает контекстное меню для графика сигнала (вкладка "График").
+            Все сообщения, выводимые через функцию print внутри обработчиков контекстного меню,
+            будут отображаться во вкладке "Сообщения" приложения, а не в стандартном выводе консоли.
+
+        Аргументы:
+            pos (QPoint): Координаты точки, в которой должно появиться контекстное меню.
+
+        Пример использования:
+            Вызывается автоматически при запросе контекстного меню на графике сигнала.
+        '''
+        with self.redirect_stdout_to_textedit():
+            show_plot_context_menu(self, pos)
+
     def closeEvent(self, event):
-        # No need to restore sys.stdout since we do not redirect globally
+        '''
+        Обработчик события закрытия главного окна.
+        Вызывает стандартный обработчик родительского класса.
+        '''
         super().closeEvent(event)
 
-    def show_plot_context_menu(self, pos):
-        menu = QMenu(self.plot_widget)
-        action1 = menu.addAction("Сохранить как изображение")
-        action2 = menu.addAction("Очистить график")
-        action3 = menu.addAction("Построить спектр")
-        action = menu.exec(self.plot_widget.mapToGlobal(pos))
-        if action == action1:
-            self.show_message("Сохранение изображения (заглушка)")
-            # Можно реализовать сохранение через self.plot_data
-            #TODO
-        elif action == action2:
-            # Очищаем график через PlotData
-            self.plot_data_signal.create_canvas()
-            self.show_message("График очищен")
-        elif action == action3:
-            self.show_message("Построить спектр")
-            # Получаем активную линию через PlotData
-            # line = self.plot_data.get_active_line()
-            # create_spectrume(self, line)
-            # Получаем параметры активной линии (цвет, стиль, имяб и т.д.)
-            params = self.plot_data_signal.get_active_line_params()
-            if params is None:
-                self.show_message("Нет активной линии для спектра")
-                return
-            # Получаем саму активную линию
-            line = self.plot_data_signal.get_active_line()
-            if line is None:
-                self.show_message("Нет активной линии для спектра")
-                return
-            add_spectrume(self, line, params)
-            # Признак режима отображения спектра: В (False) или дБ (True)
-            if not hasattr(self, '_spectrum_db_mode'):
-                self._spectrum_db_mode = False
 
-    # Контекстное меню для вкладки "Спектр" (PyQt6-совместимо)
-    def show_spectr_context_menu(self, pos):
-
-        def toggle_db():
-            # Проверяем, в каком режиме сейчас ось Y
-            if not hasattr(self, '_spectrum_db_mode'):
-                self._spectrum_db_mode = False
-            self._spectrum_db_mode = not self._spectrum_db_mode
-
-            # Получаем все линии спектра
-            lines = self.spectrum_data.get_all_lines()
-            if not lines:
-                self.show_message("Нет данных спектра для переключения масштаба")
-                return
-            
-            # Получаем параметры имен и масштабов линий из PlotData
-            layout = self.spectrum_widget.layout()
-            canvas = None
-            for i in range(layout.count()):
-                widget = layout.itemAt(i).widget()
-                if isinstance(widget, FigureCanvas):
-                    canvas = widget
-                    break
-            # line_names = getattr(canvas, "_osc_viewer_line_names", {})
-            # scale_factors = getattr(canvas, "_osc_viewer_scale_factors", {})
-
-            self.spectrum_data.clear_canvas()
-            for line in lines:
-                freq = line.get_xdata()
-                spectrum = line.get_ydata()
-                params = self.spectrum_data.get_line_params(line)
-                name = line_names.get(line, params['label'] if params else "График")
-                scale = scale_factors.get(line, 1.0)
-                if params is None:
-                    continue
-                if self._spectrum_db_mode:
-                    spectrum_db = 20 * np.log10(np.abs(spectrum) + 1e-12)
-                    label = f"{name}"
-                    ylabel = 'Амплитуда, дБ'
-                    title = "Спектр сигнала (дБ)"
-                    ydata = spectrum_db
-                    print(f"Переключаем на дБ: {label}")
-                else:
-                    spectrum_v = np.power(10, spectrum / 20)
-                    label = f"{name})"
-                    ylabel = 'Амплитуда, В'
-                    title = "Спектр сигнала"
-                    ydata = spectrum_v
-                    print(f"Переключаем на В: {label}")
-
-                self.spectrum_data.plot_line(
-                    freq, ydata,
-                    add_mode=True,
-                    color=params['color'],
-                    linestyle=params['linestyle'],
-                    label=label,
-                    add_scale_label=True  # Не добавляем масштаб к имени линии, он уже в label
-                )
-
-            self.spectrum_data.set_axes_params(
-                xlim=(0, 4),
-                title=title,
-                ylabel=ylabel,
-                xlabel='Частота, МГц'
-            )
-                
-        menu = QMenu(self.spectrum_widget)
-        if (self._spectrum_db_mode):
-            text_menu = "Переключить Y: дБ / В"
-        else:
-            text_menu = "Переключить Y: В / дБ"
-        action_toggle_db = QAction(text_menu, self.spectrum_widget)
-        menu.addAction(action_toggle_db)
-
-        action_toggle_db.triggered.connect(toggle_db)
-        menu.exec(self.spectrum_widget.mapToGlobal(pos))
-
-
-
-
-    
-# Запуск приложения
+# =========================
+# Точка входа в приложение
+# =========================
 if __name__ == "__main__":
+    # Создаем экземпляр приложения Qt
     app = QApplication(sys.argv)
+    # Создаем главное окно приложения
     window = MainWindow()
+    # Показываем главное окно
     window.show()
+    # Запускаем главный цикл приложения
     app.exec()

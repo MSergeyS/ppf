@@ -24,6 +24,7 @@ MD5.EXE
 *.bak
 *.ipynb_checkpoints
 **/__pycache__
+**/.pytest_cache
 
 import/
 *.hex

@@ -1,0 +1,14 @@
+Файл                                               Дата            Версия
+./create_spectrume.py                              2025-09-25      1.0.0     
+./example_PlotData.py                              2025-09-25      1.0.0     
+./load_and_prepare_data.py                         2025-09-25      1.0.0     
+./main.py                                          2025-09-26      1.0.1     
+./osc_context_menu.py                              2025-09-26      1.0.1     
+./PlotData.py                                      2025-09-26      1.0.1     
+./spectr_context_menu.py                           2025-09-26      1.0.1     
+./tests/test_create_spectrume.py                   2025-09-26      1.0.0     
+./tests/test_load_and_prepare_data.py              2025-09-26      1.0.0     
+./tests/test_main.py                               2025-09-26      1.0.0     
+./tests/test_osc_context_menu.py                   2025-09-26      1.0.0     
+./tests/test_PlotData.py                           2025-09-25      1.0.0     
+./tests/test_spectr_context_menu.py                2025-09-26      1.0.0     

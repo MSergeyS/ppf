@@ -78,6 +78,9 @@ import pytest  # Для написания тестов
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout
 
 # Импортируем тестируемый класс PlotData
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from PlotData import PlotData
 
 def test_plot_line_with_zoom_and_style(plot_widget):

@@ -3,8 +3,8 @@
 main.py
 
 Автор:        Мосолов С.С. (mosolov.s.s@yandex.ru)
-Дата:         2025-09-25
-Версия:       1.0.0
+Дата:         2025-09-26
+Версия:       1.0.1
 
 Лицензия:     MIT License
 Контакты:     https://github.com/MSergeyS/ppf.git
@@ -149,9 +149,10 @@ class MainWindow(QMainWindow):
             Qt.ContextMenuPolicy.CustomContextMenu
         )
         self.spectrum_widget.customContextMenuRequested.connect(
-            lambda pos: show_spectr_context_menu(self, pos)
+            self.show_spectr_context_menu_with_redirect
         )
         self.spectrum_layout = QVBoxLayout(self.spectrum_widget)  # Layout для спектра
+        self._spectrum_db_mode = False
 
         # Основной layout окна
         layout = QVBoxLayout()
@@ -178,10 +179,6 @@ class MainWindow(QMainWindow):
         open_action.triggered.connect(self.open_csv_with_redirect)
         # Добавляем действие в меню "Файл"
         file_menu.addAction(open_action)
-
-        # Флаг режима отображения спектра (В или дБ)
-        self._spectrum_db_mode = False
-    
 
     def show_message(self, text):
         '''
@@ -246,6 +243,21 @@ class MainWindow(QMainWindow):
         '''
         with self.redirect_stdout_to_textedit():
             show_plot_context_menu(self, pos)
+
+    def show_spectr_context_menu_with_redirect(self, pos):
+        '''
+        Показывает контекстное меню для вкладки "Спектр" с перенаправлением вывода в QTextEdit.
+
+        Описание:
+            Этот метод отображает контекстное меню для вкладки "Спектр".
+            Все сообщения, выводимые через функцию print внутри обработчиков контекстного меню,
+            будут отображаться во вкладке "Сообщения" приложения, а не в стандартном выводе консоли.
+
+        Аргументы:
+            pos (QPoint): Координаты точки, в которой должно появиться контекстное меню.
+        '''
+        with self.redirect_stdout_to_textedit():
+            show_spectr_context_menu(self, pos)
 
     def closeEvent(self, event):
         '''

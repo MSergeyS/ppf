@@ -3,8 +3,8 @@
 PlotData.py
 
 Автор:        Мосолов С.С. (mosolov.s.s@yandex.ru)
-Дата:         2025-09-25
-Версия:       1.0.0
+Дата:         2025-09-26
+Версия:       1.0.1
 
 Лицензия:     MIT License
 Контакты:     https://github.com/MSergeyS/ppf.git
@@ -39,6 +39,11 @@ PlotData.py
 - set_axes_params(...): Комплексная настройка параметров отображения графика.
 - update_legend(add_scale_label=True): Обновление легенды с учётом имён и масштабных коэффициентов линий.
 - create_canvas(): Инициализация холста и панели инструментов внутри родительского виджета.
+- get_x_min(): Получение минимального значения по оси X среди всех линий.
+- get_x_max(): Получение максимального значения по оси X среди всех линий.
+- get_y_min(): Получение минимального значения по оси Y среди всех линий.
+- get_y_max(): Получение максимального значения по оси Y среди всех линий.
+- clip_data_x_axis(x_min, x_max): Обрезка данных всех линий по оси X до заданного диапазона.
 '''
 
 # Импортируем numpy для работы с массивами и числовыми операциями
@@ -785,3 +790,101 @@ class PlotData(QWidget):
 
         # Обновляем легенду графика
         main_window.update_legend()
+
+
+    def get_x_min(main_window):
+        '''
+        Возвращает минимальное значение по оси X среди всех линий на графике.
+        '''
+        lines = main_window.get_all_lines()
+        if not lines:
+            return None
+        x_min = min(np.min(line.get_xdata()) for line in lines if len(line.get_xdata()) > 0)
+        return x_min
+
+    def get_x_max(main_window):
+        '''
+        Возвращает максимальное значение по оси X среди всех линий на графике.
+
+        Метод перебирает все линии, построенные на текущей оси (main_window.ax), и находит максимальное значение X среди всех точек этих линий.
+        Если на графике нет линий, возвращает None.
+
+        Returns:
+            float | None: Максимальное значение X или None, если линий нет.
+        '''
+        # Получаем список всех линий на графике
+        lines = main_window.get_all_lines()
+        if not lines:
+            return None
+        # Для каждой линии получаем массив X-координат, вычисляем максимум, затем ищем максимальный максимум среди всех линий
+        x_max = max(np.max(line.get_xdata()) for line in lines if len(line.get_xdata()) > 0)
+        return x_max
+
+    def get_y_min(main_window):
+        '''
+        Возвращает минимальное значение по оси Y среди всех линий на графике.
+
+        Метод перебирает все линии на текущей оси и находит минимальное значение Y среди всех точек этих линий.
+        Если на графике нет линий, возвращает None.
+
+        Returns:
+            float | None: Минимальное значение Y или None, если линий нет.
+        '''
+        # Получаем список всех линий на графике
+        lines = main_window.get_all_lines()
+        if not lines:
+            return None
+        # Для каждой линии получаем массив Y-координат, вычисляем минимум, затем ищем минимальный минимум среди всех линий
+        y_min = min(np.min(line.get_ydata()) for line in lines if len(line.get_ydata()) > 0)
+        return y_min
+
+    def get_y_max(main_window):
+        '''
+        Возвращает максимальное значение по оси Y среди всех линий на графике.
+
+        Метод перебирает все линии на текущей оси и находит максимальное значение Y среди всех точек этих линий.
+        Если на графике нет линий, возвращает None.
+
+        Returns:
+            float | None: Максимальное значение Y или None, если линий нет.
+        '''
+        # Получаем список всех линий на графике
+        lines = main_window.get_all_lines()
+        if not lines:
+            return None
+        # Для каждой линии получаем массив Y-координат, вычисляем максимум, затем ищем максимальный максимум среди всех линий
+        y_max = max(np.max(line.get_ydata()) for line in lines if len(line.get_ydata()) > 0)
+        return y_max
+    
+    def clip_data_x_axis(main_window, x_min, x_max):
+        '''
+        Обрезает данные всех линий по оси X до заданного диапазона [x_min, x_max].
+
+        Параметры:
+            x_min (float): Минимальное значение по оси X.
+            x_max (float): Максимальное значение по оси X.
+
+        Описание:
+            Метод перебирает все линии на текущей оси (main_window.ax) и обрезает их данные по оси X,
+            оставляя только те точки, которые попадают в указанный диапазон [x_min, x_max].
+            После обрезки обновляет отображение графика.
+        '''
+        # Проверяем наличие линий на графике
+        if not hasattr(main_window, "ax") or not main_window.ax.lines:
+            return
+
+        # Перебираем все линии на графике
+        for line in main_window.ax.lines:
+            xdata = line.get_xdata()
+            ydata = line.get_ydata()
+            # Создаем маску для точек внутри заданного диапазона по X
+            mask = (xdata >= x_min) & (xdata <= x_max)
+            # Применяем маску к данным линии
+            line.set_xdata(xdata[mask])
+            line.set_ydata(ydata[mask])
+
+        # Обновляем пределы осей и перерисовываем холст
+        main_window.ax.relim()
+        main_window.ax.autoscale_view()
+        main_window.canvas.draw_idle()
+
